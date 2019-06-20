@@ -8,13 +8,14 @@ Created on Tue Jun 18 16:21:42 2019
 import midterm_task1
 
 # please install from pip plox
+from dateutil.relativedelta import relativedelta
 import keyboard
 
 import csv
 from datetime import date
+import functools
 import re
 import sys
-import _thread as thread
 
 def dob_valid(record):
     try:
@@ -71,6 +72,23 @@ def rdate_valid(record):
         return False
     
     return (rdate_d - msd_d) <= midterm_task1.renewal_span
+
+def date_filter(key, min_years, max_years, record):
+    d = record[key]
+    span = relativedelta(date.today(), date.fromisoformat(d))
+    if max_years is None:
+        return span >= min_years
+    else:
+        return span >= min_years and span <= max_years
+
+def status_filter(min_status, max_status, record):
+    sts = midterm_task1.statuses.index(record['Status'])
+    sts_idx_0 = midterm_task1.statuses.index(min_status)
+    if max_status:
+        sts_idx_1 = midterm_task1.statuses.index(max_status)
+        return sts >= min_status and sts <= max_status
+    else:
+        return sts >= min_status
 
 MEMBER_FORMAT = {
     # 'Mno': re.compile(r'\d{6}'),
@@ -139,10 +157,10 @@ def search_member(db, key, criterion):
     
     return matching_values
 
-def validate_member(record):
+def validate_member(record, keys=midterm_task1.fieldnames):
     fix_these_fields = []
 
-    for field in midterm_task1.fieldnames:
+    for field in keys:
         validator = MEMBER_FORMAT.get(field, None)
         field_valid = True
 
@@ -206,11 +224,19 @@ def add_member(db, writer=None):
     
     return record
 
-def remove_member():
-    pass
+def remove_member(record, db, writer=None):
+    old_member_level = record['Status']
+    record['Status'] = 'None'
+    record['med'] = date.today().isoformat()
 
-def mod_status_member(record, up=True):
+    db['Status'][old_member_level].remove(record)
+    db['Status'][record['Status']].append(record)
+    if writer:
+        writer.writerow(record)
+
+def mod_status_member(record, db, up=True, writer=None):
     # upgrades member status and adjusts renewal date in place
+    old_member_level = record['Status']
     status_idx = midterm_task1.statuses.index(record.get('Status', 'None'))
 #    print("To upgrade, type: record['Status'] = mod_status_member(record, up=True)\n"
 #          "To downgrade, type: record['Status'] = mod_status_member(record, up=False)")
@@ -220,9 +246,28 @@ def mod_status_member(record, up=True):
         record['Status'] = midterm_task1.statuses[max(status_idx - 1, 0)]
 
     record['rdate'] = (date.today() + midterm_task1.year).isoformat()
+    db['Status'][old_member_level].remove(record)
+    db['Status'][record['Status']].append(record)
 
-def mod_member_data():
-    pass
+    if writer:
+        writer.writerow(record)
+
+def mod_member_data(record, field, db, writer=None):
+    field_valid = False
+    field = input("Field to change? ")
+    old_value = record[field]
+
+    while not field_valid:
+        new_value = input("Please insert new value. ")
+        record[field] = new_value
+        fix_fields = validate_member(record, keys=[field])
+        field_valid = bool(fix_fields)
+
+    db[field][old_value].remove(record)
+    db[field][new_value].append(record)
+
+    if writer:
+        writer.writerow(record)
 
 # Handle key checks in separate thread:: https://stackoverflow.com/a/55822238
 # Escape key detect:: https://stackoverflow.com/questions/21653072/exiting-a-loop-by-pressing-a-escape-key
@@ -237,6 +282,7 @@ def readch():
 
 
 def check_keys():
+    """ Currently not used. """
     while True:  # making a loop
         try:  # used try so that if user pressed other than the given key error will not be shown
             if keyboard.is_pressed('esc'):  # if key 'q' is pressed 
@@ -256,6 +302,10 @@ def ui_loop(filename: str='memberdata.csv'):
     with open(filename, 'a', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, restval='', fieldnames=midterm_task1.fieldnames)
 
+        def hotkey_handler():
+            print("I am amazing... or something.")
+        # keyboard.add_hotkey('esc', hotkey_handler, args=tuple())
+
         while running:
             print("a. Add a new member\n"
                   "b. Remove member\n"
@@ -271,6 +321,7 @@ def ui_loop(filename: str='memberdata.csv'):
             elif choice == 'a':
                 add_member(db, writer=writer)
             elif choice == 'e':
+                # import text file
                 pass
             elif choice in 'bcdfg':
                 searching = True
@@ -284,27 +335,135 @@ def ui_loop(filename: str='memberdata.csv'):
                         
                         if pchoice in 'Yy':
                             print(records)
+                            break
                         elif pchoice in 'Nn':
-                            pass
+                            continue
                             # go back up to search
+                    else:
+                        print(records)
+                        break
+
+                member_edited = 0
+                record = None
+                if choice in 'bcd':
+                    while True:
+                        try:
+                            member_edited = int(input("Choose a member (1-{0}). ".format(len(records))))
+                            break
+                        except ValueError as e:
+                            continue
+                    if member_edited <= 0: continue
+                    record = records[member_edited - 1]
+
+                searching = False
 
                 if choice == 'b':
-                    pass
+                    # remove member
+                    subchoice = input("Sure you wanna delete them? (Y/N) ")
+
+                    if subchoice not in "Yy": continue
+                    remove_member(record, db, writer=writer)
+
                 elif choice == 'c':
-                    pass
-                    # then choose an item
-                    
-                    mod_status_member(record, up=up)
-                    writer.writerow(record)
+                    # upgrade/downgrade chosen member
+                    subchoice = input("Upgrade, downgrade, or do nothing? (Y/N/*) ")
+
+                    if subchoice not in "YyNn": continue
+                    up = subchoice in "Yy"
+
+                    mod_status_member(record, db, up=up, writer=writer)
+
                 elif choice == 'd':
-                    pass
-                
+                    # modify member data
+                    field_valid = False
+                    subchoice = input("Field to change? ")
+
+                    mod_member_data(record, subchoice, db, writer=writer)
+
                 elif choice == 'f':
                     # member search only
-                    pass
+                    print("Heading back to menu...")
 
                 elif choice == 'g':
-                    pass
+                    # bulk operation
+                    print((
+                        "a. Push renewal date.\n"
+                        "b. Change membership status.\n"
+                        "c. Delete members.\n"
+                    ))
+                    bulk_choice = input("Which bulk op? ")
+
+                    ## Restrict to the following
+                    print((
+                        "(age). Members for a given age range.\n"
+                        "(member). Members who have been members for more than a certain period.\n"
+                        "(status). Members with certain membership status.\n"
+                        "(age) X Y, (member) X Y, (status) X Y\n"
+                        "(age) X+, (member) X+, (status) X\n"
+                    ))
+
+                    filter_syntax = input('Filter? ')
+                    age_filter = re.compile(r'age (\d+)( \d+)?', flags=re.I)
+                    mem_filter = re.compile(r'member (\d+)( \d+)?', flags=re.I)
+                    sts_filter = re.compile(r'status (none|basic|silver|gold|platinum)( none|basic|silver|gold|platinum)?')
+
+                    filter_parts = filter_syntax.split(', ')
+                    criterion = []
+                    for f in filter_parts:
+                        age_f = age_filter.fullmatch(f)
+                        mem_f = mem_filter.fullmatch(f)
+                        sts_f = sts_filter.fullmatch(f)
+
+                        if age_f:
+                            min_years = int(age_f.groups()[0])
+                            max_years = int(age_f.groups()[1]) if age_f.groups()[1] else None
+                            criterion.append(functools.partial(date_filter, 'DoB', min_years, max_years))
+                        elif mem_f:
+                            min_years = int(mem_f.groups()[0])
+                            max_years = int(mem_f.groups()[1]) if mem_f.groups()[1] else None
+                            criterion.append(functools.partial(date_filter, 'msd', min_years, max_years))
+                        elif sts_f:
+                            min_status = sts_f.groups()[0].strip().title()
+                            max_status = sts_f.groups()[1].strip().title() if sts_f.groups()[1] else None
+                            criterion.append(functools.partial(status_filter, min_status, max_status))
+
+                    records = [ r for r in records if all(map(lambda x: x(r), criterion)) ]
+
+                    if bulk_choice == 'a':
+                        ## push renewal date
+                        old_values = [ (r['rdate'], r) for r in records ]
+
+                        while True:
+                            try:
+                                bump_months = int(input('Bump membership by how many months? '))
+                                break
+                            except ValueError as e:
+                                continue
+
+                        for r in records:
+                            r['rdate'] = (date.fromisoformat(r['rdate']) + relativedelta(months=bump_months)).isoformat()
+                        for ov in old_values:
+                            print("!!", ov)
+                            db['rdate'][ov[0]].remove(ov[1])
+                            if ov[1]['rdate'] not in db['rdate']:
+                                db['rdate'][ov[1]['rdate']] = []
+                            db['rdate'][ov[1]['rdate']].append(ov[1])
+                            writer.writerow(ov[1])
+
+                    elif bulk_choice == 'b':
+                        ## change membership status
+                        subchoice = input("Upgrade, downgrade, or do nothing? (Y/N/*) ")
+
+                        if subchoice not in "YyNn": continue
+                        up = subchoice in "Yy"
+
+                        for r in records:
+                            mod_status_member(r, db, up=up, writer=writer)
+
+                    elif bulk_choice == 'c':
+                        ## delete members
+                        for r in records:
+                            remove_member(r, db, writer=writer)
 
 if __name__ == "__main__":
     ui_loop()

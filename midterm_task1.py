@@ -4,6 +4,8 @@ Created on Tue Jun 18 12:51:50 2019
 
 @author: timpa
 """
+from dateutil.relativedelta import relativedelta
+
 import csv
 import string
 import random
@@ -27,7 +29,7 @@ statuses = ["None", "Basic", "Silver", "Gold", "Platinum"]
 
 min_m_date = date(1981, 1, 1)
 #min_b_date = date(min_m_date.year - 18, min_m_date.month, min_m_date.day)
-year = timedelta(days=365.25)
+year = relativedelta(days=1)
 lifespan = 80 * year
 renewal_span = 5 * year
 imma_adult = 18 * year
