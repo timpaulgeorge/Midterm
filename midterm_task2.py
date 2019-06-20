@@ -219,7 +219,7 @@ def mod_status_member(record, up=True):
     else:
         record['Status'] = midterm_task1.statuses[max(status_idx - 1, 0)]
 
-    record['rdate'] = (date.today() + year).isoformat()
+    record['rdate'] = (date.today() + midterm_task1.year).isoformat()
 
 def mod_member_data():
     pass
