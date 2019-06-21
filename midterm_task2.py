@@ -261,12 +261,17 @@ def write_db(filename: str='memberdata.csv'):
         writer.writeheader()
         
 
-def search_member(db, key, criterion):
+def search_member(db, kc_pairs):
     matching_values = []
+    key_list = list(kc_pairs.keys())
+    key, other_keys = key_list[0], key_list[1:]
     
     for db_key_val in db[key]:
-        if criterion in db_key_val:
-            matching_values.extend(db[key][db_key_val])   
+        if kc_pairs[key] in db_key_val:
+            matching_values.extend(
+                r for r in db[key][db_key_val]
+                if all(kc_pairs[o] in r[o] for o in other_keys)
+            )
     
     return matching_values
 
@@ -436,14 +441,21 @@ def ui_loop(filename: str='memberdata.csv'):
                 merge_db(fpath, db, writer)
             elif choice in 'bcdfg':
                 searching = True
+                search_pair = re.compile(r'([^:]+):([^:]+)')
                 while searching:
-                    key = input("Field name? ")
-                    criterion = input("Criterion? ")
-                    records = search_member(db, key, criterion)
+                    # TODO: Filter by multiple criteria
+                    print("Search syntax:: Field name:Criterion[, Field name: Criterion, ...]")
+                    kc_pairs = {}
+                    query = input("Query? ")
+                    for q in query.split(', '):
+                        kc = search_pair.fullmatch(q)
+                        if kc:
+                            kc_pairs[kc.group(1)] = kc.group(2)
+
+                    records = search_member(db, kc_pairs)
                     
                     if len(records) > 10:
                         pchoice = input("More than 10 members matching the criteria, print? (Y/N)")
-                        
                         if pchoice in 'Yy':
                             print(records)
                             break
