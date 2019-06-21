@@ -5,6 +5,7 @@ Created on Tue Jun 18 16:21:42 2019
 @author: timpa
 """
 
+from ctype_async_raise import ctype_async_raise
 import midterm_task1
 
 # please install from pip plox
@@ -17,6 +18,7 @@ import functools
 import os
 import re
 import sys
+import threading
 
 def dob_valid(record):
     try:
@@ -417,6 +419,9 @@ def check_keys():
         except:
             break
 
+class BackOutException(BaseException):
+    pass
+
 def ui_loop(filename: str='memberdata.csv'):
     # remember to store reference to CSV writer at the beginning of the program
     #thread.start_new_thread(check_keys, ())
@@ -427,178 +432,191 @@ def ui_loop(filename: str='memberdata.csv'):
         writer = csv.DictWriter(csvfile, restval='', fieldnames=midterm_task1.fieldnames)
 
         def hotkey_handler():
-            print("I am amazing... or something.")
-        # keyboard.add_hotkey('esc', hotkey_handler, args=tuple())
+            ctype_async_raise(threading.main_thread(), BackOutException)
+        keyboard.add_hotkey('esc', hotkey_handler, args=tuple())
 
         while running:
-            print("a. Add a new member\n"
-                  "b. Remove member\n"
-                  "c. Upgrade/Downgrade membership\n"
-                  "d. Modify member data\n"
-                  "e. Import members (csv or a text file)\n"
-                  "f. Search a member\n"
-                  "g. Bulk operation\n")
-            choice = input("What to do? ")
-            
-            if choice == 'q':
-                running = False
-            elif choice == 'a':
-                add_member(db, writer=writer)
-            elif choice == 'e':
-                # import text file
-                # it's always appending
-                while True:
-                    fpath = input('Filename? ')
-                    if os.path.exists(fpath): break
+            in_screen = False
+            try:
+                print("> You can hit <Esc><Enter> at any time to go back to the main menu.")
+                print("> Or exit the program, if you're at the menu.")
+                print("a. Add a new member\n"
+                      "b. Remove member\n"
+                      "c. Upgrade/Downgrade membership\n"
+                      "d. Modify member data\n"
+                      "e. Import members (csv or a text file)\n"
+                      "f. Search a member\n"
+                      "g. Bulk operation\n")
+                choice = input("What to do? ")
 
-                merge_db(fpath, db, writer)
-            elif choice in 'bcdfg':
-                searching = True
-                search_pair = re.compile(r'([^:]+):([^:]+)')
-                while searching:
-                    # TODO: Filter by multiple criteria
-                    print("Search syntax:: Field name:Criterion[, Field name: Criterion, ...]")
-                    kc_pairs = {}
-                    query = input("Query? ")
-                    for q in query.split(', '):
-                        kc = search_pair.fullmatch(q)
-                        if kc:
-                            kc_pairs[kc.group(1)] = kc.group(2)
+                in_screen = True
+                if choice == 'q':
+                    running = False
+                elif choice == 'a':
+                    add_member(db, writer=writer)
+                elif choice == 'e':
+                    # import text file
+                    # it's always appending
+                    while True:
+                        fpath = input('Filename? ')
+                        if os.path.exists(fpath): break
 
-                    records = search_member(db, kc_pairs)
-                    
-                    if len(records) > 10:
-                        pchoice = input("More than 10 members matching the criteria, print? (Y/N)")
-                        if pchoice in 'Yy':
+                    merge_db(fpath, db, writer)
+                elif choice in 'bcdfg':
+                    searching = True
+                    search_pair = re.compile(r'([^:]+):([^:]+)')
+                    while searching:
+                        # TODO: Filter by multiple criteria
+                        print("Search syntax:: Field name:Criterion[, Field name: Criterion, ...]")
+                        kc_pairs = {}
+                        query = input("Query? ")
+                        for q in query.split(', '):
+                            kc = search_pair.fullmatch(q)
+                            if kc:
+                                kc_pairs[kc.group(1)] = kc.group(2)
+
+                        records = search_member(db, kc_pairs)
+
+                        if len(records) > 10:
+                            pchoice = input("More than 10 members matching the criteria, print? (Y/N)")
+                            if pchoice in 'Yy':
+                                print(records)
+                                break
+                            elif pchoice in 'Nn':
+                                continue
+                                # go back up to search
+                        else:
                             print(records)
                             break
-                        elif pchoice in 'Nn':
-                            continue
-                            # go back up to search
-                    else:
-                        print(records)
-                        break
 
-                member_edited = 0
-                record = None
-                if choice in 'bcd':
-                    while True:
-                        try:
-                            member_edited = int(input("Choose a member (1-{0}). ".format(len(records))))
-                            break
-                        except ValueError as e:
-                            continue
-                    if member_edited <= 0: continue
-                    record = records[member_edited - 1]
-
-                searching = False
-
-                if choice == 'b':
-                    # remove member
-                    subchoice = input("Sure you wanna delete them? (Y/N) ")
-
-                    if subchoice not in "Yy": continue
-                    remove_member(record, db, writer=writer)
-
-                elif choice == 'c':
-                    # upgrade/downgrade chosen member
-                    subchoice = input("Upgrade, downgrade, or do nothing? (Y/N/*) ")
-
-                    if subchoice not in "YyNn": continue
-                    up = subchoice in "Yy"
-
-                    mod_status_member(record, db, up=up, writer=writer)
-
-                elif choice == 'd':
-                    # modify member data
-                    field_valid = False
-                    subchoice = input("Field to change? ")
-
-                    mod_member_data(record, subchoice, db, writer=writer)
-
-                elif choice == 'f':
-                    # member search only
-                    print("Heading back to menu...")
-
-                elif choice == 'g':
-                    # bulk operation
-                    print((
-                        "a. Push renewal date.\n"
-                        "b. Change membership status.\n"
-                        "c. Delete members.\n"
-                    ))
-                    bulk_choice = input("Which bulk op? ")
-
-                    ## Restrict to the following
-                    print((
-                        "(age). Members for a given age range.\n"
-                        "(member). Members who have been members for more than a certain period.\n"
-                        "(status). Members with certain membership status.\n"
-                        "(age) X Y, (member) X Y, (status) X Y\n"
-                        "(age) X+, (member) X+, (status) X\n"
-                    ))
-
-                    filter_syntax = input('Filter? ')
-                    age_filter = re.compile(r'age (\d+)( \d+)?', flags=re.I)
-                    mem_filter = re.compile(r'member (\d+)( \d+)?', flags=re.I)
-                    sts_filter = re.compile(r'status (none|basic|silver|gold|platinum)( none|basic|silver|gold|platinum)?')
-
-                    filter_parts = filter_syntax.split(', ')
-                    criterion = []
-                    for f in filter_parts:
-                        age_f = age_filter.fullmatch(f)
-                        mem_f = mem_filter.fullmatch(f)
-                        sts_f = sts_filter.fullmatch(f)
-
-                        if age_f:
-                            min_years = int(age_f.groups()[0])
-                            max_years = int(age_f.groups()[1]) if age_f.groups()[1] else None
-                            criterion.append(functools.partial(date_filter, 'DoB', min_years, max_years))
-                        elif mem_f:
-                            min_years = int(mem_f.groups()[0])
-                            max_years = int(mem_f.groups()[1]) if mem_f.groups()[1] else None
-                            criterion.append(functools.partial(date_filter, 'msd', min_years, max_years))
-                        elif sts_f:
-                            min_status = sts_f.groups()[0].strip().title()
-                            max_status = sts_f.groups()[1].strip().title() if sts_f.groups()[1] else None
-                            criterion.append(functools.partial(status_filter, min_status, max_status))
-
-                    records = [ r for r in records if all(map(lambda x: x(r), criterion)) ]
-
-                    if bulk_choice == 'a':
-                        ## push renewal date
-                        old_values = [ (r['rdate'], r) for r in records ]
-
+                    member_edited = 0
+                    record = None
+                    if choice in 'bcd':
                         while True:
                             try:
-                                bump_months = int(input('Bump membership by how many months? '))
+                                member_edited = int(input("Choose a member (1-{0}). ".format(len(records))))
                                 break
                             except ValueError as e:
                                 continue
+                        if member_edited <= 0: continue
+                        record = records[member_edited - 1]
 
-                        for r in records:
-                            r['rdate'] = (date.fromisoformat(r['rdate']) + relativedelta(months=bump_months)).isoformat()
-                        for ov in old_values:
-                            db['rdate'][ov[0]].remove(ov[1])
-                            if ov[1]['rdate'] not in db['rdate']:
-                                db['rdate'][ov[1]['rdate']] = []
-                            db['rdate'][ov[1]['rdate']].append(ov[1])
-                            writer.writerow(ov[1])
+                    searching = False
 
-                    elif bulk_choice == 'b':
-                        ## change membership status
+                    if choice == 'b':
+                        # remove member
+                        subchoice = input("Sure you wanna delete them? (Y/N) ")
+
+                        if subchoice not in "Yy": continue
+                        remove_member(record, db, writer=writer)
+
+                    elif choice == 'c':
+                        # upgrade/downgrade chosen member
                         subchoice = input("Upgrade, downgrade, or do nothing? (Y/N/*) ")
 
                         if subchoice not in "YyNn": continue
                         up = subchoice in "Yy"
 
-                        for r in records:
-                            mod_status_member(r, db, up=up, writer=writer)
+                        mod_status_member(record, db, up=up, writer=writer)
 
-                    elif bulk_choice == 'c':
-                        ## delete members
-                        for r in records:
-                            remove_member(r, db, writer=writer)
+                    elif choice == 'd':
+                        # modify member data
+                        field_valid = False
+                        subchoice = input("Field to change? ")
+
+                        mod_member_data(record, subchoice, db, writer=writer)
+
+                    elif choice == 'f':
+                        # member search only
+                        print("Heading back to menu...")
+
+                    elif choice == 'g':
+                        # bulk operation
+                        print((
+                            "a. Push renewal date.\n"
+                            "b. Change membership status.\n"
+                            "c. Delete members.\n"
+                        ))
+                        bulk_choice = input("Which bulk op? ")
+
+                        ## Restrict to the following
+                        print((
+                            "(age). Members for a given age range.\n"
+                            "(member). Members who have been members for more than a certain period.\n"
+                            "(status). Members with certain membership status.\n"
+                            "(age) X Y, (member) X Y, (status) X Y\n"
+                            "(age) X+, (member) X+, (status) X\n"
+                        ))
+
+                        filter_syntax = input('Filter? ')
+                        age_filter = re.compile(r'age (\d+)( \d+)?', flags=re.I)
+                        mem_filter = re.compile(r'member (\d+)( \d+)?', flags=re.I)
+                        sts_filter = re.compile(r'status (none|basic|silver|gold|platinum)( none|basic|silver|gold|platinum)?')
+
+                        filter_parts = filter_syntax.split(', ')
+                        criterion = []
+                        for f in filter_parts:
+                            age_f = age_filter.fullmatch(f)
+                            mem_f = mem_filter.fullmatch(f)
+                            sts_f = sts_filter.fullmatch(f)
+
+                            if age_f:
+                                min_years = int(age_f.groups()[0])
+                                max_years = int(age_f.groups()[1]) if age_f.groups()[1] else None
+                                criterion.append(functools.partial(date_filter, 'DoB', min_years, max_years))
+                            elif mem_f:
+                                min_years = int(mem_f.groups()[0])
+                                max_years = int(mem_f.groups()[1]) if mem_f.groups()[1] else None
+                                criterion.append(functools.partial(date_filter, 'msd', min_years, max_years))
+                            elif sts_f:
+                                min_status = sts_f.groups()[0].strip().title()
+                                max_status = sts_f.groups()[1].strip().title() if sts_f.groups()[1] else None
+                                criterion.append(functools.partial(status_filter, min_status, max_status))
+
+                        records = [ r for r in records if all(map(lambda x: x(r), criterion)) ]
+
+                        if bulk_choice == 'a':
+                            ## push renewal date
+                            old_values = [ (r['rdate'], r) for r in records ]
+
+                            while True:
+                                try:
+                                    bump_months = int(input('Bump membership by how many months? '))
+                                    break
+                                except ValueError as e:
+                                    continue
+
+                            for r in records:
+                                r['rdate'] = (date.fromisoformat(r['rdate']) + relativedelta(months=bump_months)).isoformat()
+                            for ov in old_values:
+                                db['rdate'][ov[0]].remove(ov[1])
+                                if ov[1]['rdate'] not in db['rdate']:
+                                    db['rdate'][ov[1]['rdate']] = []
+                                db['rdate'][ov[1]['rdate']].append(ov[1])
+                                writer.writerow(ov[1])
+
+                        elif bulk_choice == 'b':
+                            ## change membership status
+                            subchoice = input("Upgrade, downgrade, or do nothing? (Y/N/*) ")
+
+                            if subchoice not in "YyNn": continue
+                            up = subchoice in "Yy"
+
+                            for r in records:
+                                mod_status_member(r, db, up=up, writer=writer)
+
+                        elif bulk_choice == 'c':
+                            ## delete members
+                            for r in records:
+                                remove_member(r, db, writer=writer)
+                else:
+                    in_screen = False
+            except BackOutException as e:
+                print("Exception handler!", in_screen)
+                if in_screen:
+                    continue
+                else:
+                    sys.exit(0)
 
 if __name__ == "__main__":
     ui_loop()
