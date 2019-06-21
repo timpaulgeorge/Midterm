@@ -6,6 +6,7 @@ Created on Tue Jun 18 12:51:50 2019
 """
 from dateutil.relativedelta import relativedelta
 
+from argparse import ArgumentParser
 import csv
 import string
 import random
@@ -123,4 +124,11 @@ def gen_member_data(filename: str='memberdata.csv', num_mems: int=1000):
             writer.writerow(record)
 
 if __name__ == "__main__":
-    gen_member_data()
+    aparser = ArgumentParser()
+    aparser.add_argument('-no', type=int, default=1000,
+        help="# of random members to generate")
+    aparser.add_argument('-fname', type=str, default='memberdata.csv',
+        help="path to write the new file")
+    args = aparser.parse_args()
+
+    gen_member_data(filename=args.fname, num_mems=args.no)
