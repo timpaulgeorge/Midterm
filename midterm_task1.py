@@ -115,7 +115,7 @@ Last name:
 
 def gen_member_data(filename: str='memberdata.csv', num_mems: int=1000):
     with open(filename, 'w', newline='') as csvfile:
-        writer=csv.DictWriter(csvfile, restval='missing this category', fieldnames=fieldnames)
+        writer=csv.DictWriter(csvfile, restval='', fieldnames=fieldnames)
         writer.writeheader()
         used_ids = set()
         used_ppl = set()
