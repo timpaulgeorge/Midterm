@@ -114,6 +114,21 @@ MEMBER_FORMAT = {
     'Email': re.compile(r'([^@]+@[a-z]+\.(com|org|net)|^$)'),
 }
 
+HELP_TEXT = {
+    'First name': 'Abcdefg',
+    'MI': 'A',
+    'Last name': 'Abcdefg',
+    'DoB': 'YYYY-mm-dd',
+    'Address': '123456 Something St',
+    'Status': 'None, Basic, Gold, Silver, Platinum',
+    'msd': 'YYYY-mm-dd (defaults to today)',
+    'med': 'YYYY-mm-dd (or blank)',
+    'rdate': 'YYYY-mm-dd (blank defaults to msd + 1 year)',
+    'Phone': '0001112222',
+    'Email': 'Nothing OR xxx@yyy.com',
+    'Notes': 'Anything, really.'
+}
+
 def init_blank_search_db():
     db = {}
     for k in midterm_task1.fieldnames:
@@ -316,7 +331,7 @@ def add_member(db, writer=None):
         dup_by_dob = [0]
         
         while (not field_valid) or (dup_by_dob):
-            data = input('{0}:: '.format(field))
+            data = input('{0}:: {1}\n> '.format(field, HELP_TEXT.get(field, '')))
             
             if not data:
                 if field == 'msd':
