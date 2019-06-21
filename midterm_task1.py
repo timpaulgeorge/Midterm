@@ -31,7 +31,7 @@ statuses = ["None", "Basic", "Silver", "Gold", "Platinum"]
 
 min_m_date = date(1981, 1, 1)
 #min_b_date = date(min_m_date.year - 18, min_m_date.month, min_m_date.day)
-year = relativedelta(days=1)
+year = relativedelta(years=1)
 lifespan = 80 * year
 renewal_span = 5 * year
 imma_adult = 18 * year
