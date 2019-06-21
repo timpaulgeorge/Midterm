@@ -22,14 +22,16 @@ def dob_valid(record):
     try:
         dob = record['DoB']
         dob_d = date.fromisoformat(dob)
+        when_18 = dob_d + midterm_task1.imma_adult # Needed to avoid comparing relativedeltas
     except ValueError as e:
         return False
-    return (date.today() - dob_d) >= midterm_task1.imma_adult
+    return (date.today() - dob_d) >= when_18
 
 def msd_valid(record):
     try:
         dob = record['DoB']
         dob_d = date.fromisoformat(dob)
+        when_18 = dob_d + midterm_task1.imma_adult # Needed to avoid comparing relativedeltas
     except ValueError as e:
         return False
     
@@ -39,7 +41,7 @@ def msd_valid(record):
     except ValueError as e:
         return False
 
-    return ((msd_d - dob_d) >= midterm_task1.imma_adult) and (msd_d >= midterm_task1.min_m_date)
+    return ((msd_d - dob_d) >= when_18) and (msd_d >= midterm_task1.min_m_date)
 
 def med_valid(record):
     if not record.get('med', ''):
@@ -69,18 +71,22 @@ def rdate_valid(record):
     try:
         rdate = record['rdate']
         rdate_d = date.fromisoformat(rdate)
+        max_rdate = rdate_d + midterm_task1.renewal_span
     except ValueError as e:
         return False
     
-    return (rdate_d - msd_d) <= midterm_task1.renewal_span
+    return (rdate_d - msd_d) <= max_rdate
 
 def date_filter(key, min_years, max_years, record):
-    d = record[key]
-    span = relativedelta(date.today(), date.fromisoformat(d))
+    d = date.fromisoformat(record[key])
+    min_year_d = relativedelta(years=min_years) + d
+    max_year_d = relativedelta(years=max_years) + d
+    today = date.today()
+
     if max_years is None:
-        return span >= min_years
+        return today >= min_year_d
     else:
-        return span >= min_years and span <= max_years
+        return today >= min_year_d and today <= max_year_d
 
 def status_filter(min_status, max_status, record):
     sts = midterm_task1.statuses.index(record['Status'])
