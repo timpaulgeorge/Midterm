@@ -158,12 +158,14 @@ def merge_db(filename, db, writer):
         if record['Mno'] in db['Mno']:
             is_duplicate = True
         if record['DoB'] in db['DoB']:
-            dob_dups[record] = [
-                r for r in db['DoB'].get(record['DoB'], []) if
-                r['First name'] == record['First name'] and
-                r['Last name'] == record['Last name']
-            ]
-            is_duplicate = any(dob_dups[record])
+            dob_dups[record['Mno']] = []
+            for r in db['DoB'].get(record['DoB'], []):
+                fname_same = r['First name'] == record['First name']
+                lname_same = r['Last name'] == record['Last name']
+                if fname_same and lname_same:
+                    dob_dups[record['Mno']].append(r)
+
+            is_duplicate = any(dob_dups[record['Mno']])
 
         if is_duplicate:
             return False, 'duplicate'
@@ -195,16 +197,20 @@ def merge_db(filename, db, writer):
                 elif reason == 'duplicate':
                     dup_records.append(row)
 
-        print("Adding {} entries to the DB".format(len(ok_records)))
-        for r in ok_records:
-            for field in midterm_task1.fieldnames:
-                if r[field] not in db[field]:
-                    db[field][r[field]] = []
-                db[field][r[field]].append(r)
-            writer.writerow(r)
+        if invalid_count:
+            print("Skipped {} entries".format(invalid_count))
+        if ok_records:
+            print("Adding {} entries to the DB".format(len(ok_records)))
+            for r in ok_records:
+                for field in midterm_task1.fieldnames:
+                    if r[field] not in db[field]:
+                        db[field][r[field]] = []
+                    db[field][r[field]].append(r)
+                writer.writerow(r)
         if missing_records:
             prompt = "Add {} members with missing attributes? ".format(len(missing_records))
             if input(prompt) in 'Yy':
+                print("Adding...")
                 for r in missing_records:
                     for field in midterm_task1.fieldnames:
                         if r[field] not in db[field]:
@@ -214,6 +220,7 @@ def merge_db(filename, db, writer):
         if dup_records:
             prompt = "Overwrite {} duplicate members? ".format(len(dup_records))
             if input(prompt) in 'Yy':
+                print("Adding...")
                 for r in dup_records:
                     dups_by_mno = db['Mno'][r['Mno']][:]
                     del db['Mno'][r['Mno']][:]
@@ -224,7 +231,7 @@ def merge_db(filename, db, writer):
                             db[f][dr[f]].remove(dr)
 
                     # remove all pointers to overwritten objects in memory (DoB dups)
-                    for dr in dob_dups[r]:
+                    for dr in dob_dups[r['Mno']]:
                         for f in midterm_task1.fieldnames:
                             db[f][dr[f]].remove(dr)
 
