@@ -186,14 +186,11 @@ def add_member(db, writer=None):
     record = {}
     for field in midterm_task1.fieldnames[1:]:
         field_valid = False
-        validator = MEMBER_FORMAT.get(field, None)
         
         while not field_valid:
             data = input('{0}:: '.format(field))
-            field_valid = True
             
             if not data:
-                # remember you can skip med when initializing
                 if field == 'msd':
                     data = date.today().isoformat()
                 elif field == 'rdate':
@@ -201,11 +198,7 @@ def add_member(db, writer=None):
                 print("Setting", field, "to", data, "...")
 
             record[field] = data
-            
-            if type(validator) is re.Pattern:
-                field_valid = validator.fullmatch(data)
-            elif callable(validator):
-                field_valid = validator(record)
+            field_valid = bool(not validate_member(record, keys=[field]))
 
     record['Mno'] = str(max(int(s.lstrip('0')) for s in (db['Mno'].keys() or ["-1"])) + 1).zfill(6)
 #    record['Mno'] = prev_mno + 1
@@ -261,7 +254,7 @@ def mod_member_data(record, field, db, writer=None):
         new_value = input("Please insert new value. ")
         record[field] = new_value
         fix_fields = validate_member(record, keys=[field])
-        field_valid = bool(fix_fields)
+        field_valid = bool(not fix_fields)
 
     db[field][old_value].remove(record)
     db[field][new_value].append(record)
