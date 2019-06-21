@@ -14,6 +14,7 @@ import keyboard
 import csv
 from datetime import date
 import functools
+import os
 import re
 import sys
 
@@ -136,7 +137,92 @@ def init_search_db(members, keys=midterm_task1.fieldnames):
 
     return db
 
-def read_db(filename: str='memberdata.csv'):
+def merge_db(filename, db, writer):
+    dob_dups = {}
+
+    def handle_record(record):
+        is_missing = bool(record.keys() - midterm_task1.essential_fields)
+        is_invalid = validate_member(record)
+        if is_invalid:
+            # flag as not okay
+            return False, 'invalid'
+
+
+        is_duplicate = False
+        if record['Mno'] in db['Mno']:
+            is_duplicate = True
+        if record['DoB'] in db['DoB']:
+            dob_dups[record] = [
+                r for r in db['DoB'].get(record['DoB'], [])
+                r['First name'] == record['First name'] and
+                r['Last name'] == record['Last name']
+            ]
+            is_duplicate = any(dob_dups[record])
+
+        if is_duplicate:
+            return False, 'duplicate'
+
+        if is_missing:
+            return False, 'missing'
+
+        return True, None
+
+    with open(filename, 'r', newline='') as csvfile:
+        reader = csv.DictReader(csvfile, fieldnames=midterm_task1.fieldnames)
+        next(reader) # skip header row
+
+        ok_records = []
+        invalid_count = 0
+        missing_records = []
+        dup_records = []
+
+
+        for row in reader:
+            ok, reason = handle_record(row)
+            if ok:
+                ok_records.append(row)
+            else:
+                if reason == 'invalid':
+                    invalid_count += 1
+                elif reason == 'missing':
+                    missing_records.append(row)
+                elif reason == 'duplicate':
+                    dup_records.append(row)
+
+        rows = ok_records
+        prompt = "Add {} members with missing attributes? ".format(len(missing_records))
+        if input(prompt) in 'Yy':
+            rows = chain(rows, missing_records)
+            for r in rows:
+                for field in midterm_task1.fieldnames:
+                    if r[field] not in db[field]:
+                        db[field][r[field]] = []
+                    db[field][r[field]].append(r)
+                writer.writerow(r)
+
+        prompt = "Overwrite {} duplicate members? ".format(len(dup_records))
+        if input(prompt) in 'Yy':
+            for r in dup_records:
+                dups_by_mno = db['Mno'][r['Mno']][:]
+                del db['Mno'][r['Mno']][:]
+
+                # remove all pointers to overwritten objects in memory (Mno dups)
+                for dr in dups_by_mno:
+                    for f in midterm_task1.fieldnames:
+                        db[f][dr[f]].remove(dr)
+
+                # remove all pointers to overwritten objects in memory (DoB dups)
+                for dr in dob_dups[r]:
+                    for f in midterm_task1.fieldnames:
+                        db[f][dr[f]].remove(dr)
+
+                for field in midterm_task1.fieldnames:
+                    if r[field] not in db[field]:
+                        db[field][r[field]] = []
+                    db[field][r[field]].append(r)
+                writer.writerow(r)
+
+def read_db(filename: str='memberdata.csv', db=None):
     with open(filename, 'r', newline='') as csvfile:
         reader = csv.DictReader(csvfile, fieldnames=midterm_task1.fieldnames)
         next(reader) # skip header row
@@ -315,7 +401,12 @@ def ui_loop(filename: str='memberdata.csv'):
                 add_member(db, writer=writer)
             elif choice == 'e':
                 # import text file
-                pass
+                # it's always appending
+                while True:
+                    fpath = input('Filename? ')
+                    if os.path.exists(fpath): break
+
+                merge_db(fpath, db, writer)
             elif choice in 'bcdfg':
                 searching = True
                 while searching:
@@ -436,7 +527,6 @@ def ui_loop(filename: str='memberdata.csv'):
                         for r in records:
                             r['rdate'] = (date.fromisoformat(r['rdate']) + relativedelta(months=bump_months)).isoformat()
                         for ov in old_values:
-                            print("!!", ov)
                             db['rdate'][ov[0]].remove(ov[1])
                             if ov[1]['rdate'] not in db['rdate']:
                                 db['rdate'][ov[1]['rdate']] = []

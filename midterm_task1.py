@@ -16,6 +16,7 @@ from datetime import date, timedelta
 
 fieldnames = ['Mno', 'First name', 'MI', 'Last name', 'DoB', 'Address', 'Status', 'msd', 'med', 'rdate', 'Phone', 'Email', 'Notes']
 nonessential_fields = {'med', 'Email', 'Notes', 'Address', 'MI'}
+essential_fields = set(fieldnames) - nonessential_fields
 First_name_list=["jay", "jim", "roy", "axel", "billy", "charlie", "jax", 
 "gina", "paul","ringo", "ally", "nicky", "cam", "ari", "trudie", "cal", "carl", 
 "lady", "lauren","ichabod", "arthur", "ashley", "drake", "kim", "julio", "lorraine", 
