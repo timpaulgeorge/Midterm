@@ -25,7 +25,7 @@ def dob_valid(record):
         when_18 = dob_d + midterm_task1.imma_adult # Needed to avoid comparing relativedeltas
     except ValueError as e:
         return False
-    return (date.today() - dob_d) >= when_18
+    return date.today() >= when_18
 
 def msd_valid(record):
     try:
@@ -41,7 +41,7 @@ def msd_valid(record):
     except ValueError as e:
         return False
 
-    return ((msd_d - dob_d) >= when_18) and (msd_d >= midterm_task1.min_m_date)
+    return (msd_d >= when_18) and (msd_d >= midterm_task1.min_m_date)
 
 def med_valid(record):
     if not record.get('med', ''):
@@ -65,17 +65,17 @@ def rdate_valid(record):
     try:
         msd = record['msd']
         msd_d = date.fromisoformat(msd)
+        max_rdate = msd_d + midterm_task1.renewal_span
     except ValueError as e:
         return False
 
     try:
         rdate = record['rdate']
         rdate_d = date.fromisoformat(rdate)
-        max_rdate = rdate_d + midterm_task1.renewal_span
     except ValueError as e:
         return False
     
-    return (rdate_d - msd_d) <= max_rdate
+    return rdate_d <= max_rdate
 
 def date_filter(key, min_years, max_years, record):
     d = date.fromisoformat(record[key])
