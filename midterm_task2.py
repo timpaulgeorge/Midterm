@@ -195,38 +195,44 @@ def merge_db(filename, db, writer):
                 elif reason == 'duplicate':
                     dup_records.append(row)
 
-        rows = ok_records
-        prompt = "Add {} members with missing attributes? ".format(len(missing_records))
-        if input(prompt) in 'Yy':
-            rows = chain(rows, missing_records)
-            for r in rows:
-                for field in midterm_task1.fieldnames:
-                    if r[field] not in db[field]:
-                        db[field][r[field]] = []
-                    db[field][r[field]].append(r)
-                writer.writerow(r)
+        print("Adding {} entries to the DB".format(len(ok_records)))
+        for r in ok_records:
+            for field in midterm_task1.fieldnames:
+                if r[field] not in db[field]:
+                    db[field][r[field]] = []
+                db[field][r[field]].append(r)
+            writer.writerow(r)
+        if missing_records:
+            prompt = "Add {} members with missing attributes? ".format(len(missing_records))
+            if input(prompt) in 'Yy':
+                for r in missing_records:
+                    for field in midterm_task1.fieldnames:
+                        if r[field] not in db[field]:
+                            db[field][r[field]] = []
+                        db[field][r[field]].append(r)
+                    writer.writerow(r)
+        if dup_records:
+            prompt = "Overwrite {} duplicate members? ".format(len(dup_records))
+            if input(prompt) in 'Yy':
+                for r in dup_records:
+                    dups_by_mno = db['Mno'][r['Mno']][:]
+                    del db['Mno'][r['Mno']][:]
 
-        prompt = "Overwrite {} duplicate members? ".format(len(dup_records))
-        if input(prompt) in 'Yy':
-            for r in dup_records:
-                dups_by_mno = db['Mno'][r['Mno']][:]
-                del db['Mno'][r['Mno']][:]
+                    # remove all pointers to overwritten objects in memory (Mno dups)
+                    for dr in dups_by_mno:
+                        for f in midterm_task1.fieldnames:
+                            db[f][dr[f]].remove(dr)
 
-                # remove all pointers to overwritten objects in memory (Mno dups)
-                for dr in dups_by_mno:
-                    for f in midterm_task1.fieldnames:
-                        db[f][dr[f]].remove(dr)
+                    # remove all pointers to overwritten objects in memory (DoB dups)
+                    for dr in dob_dups[r]:
+                        for f in midterm_task1.fieldnames:
+                            db[f][dr[f]].remove(dr)
 
-                # remove all pointers to overwritten objects in memory (DoB dups)
-                for dr in dob_dups[r]:
-                    for f in midterm_task1.fieldnames:
-                        db[f][dr[f]].remove(dr)
-
-                for field in midterm_task1.fieldnames:
-                    if r[field] not in db[field]:
-                        db[field][r[field]] = []
-                    db[field][r[field]].append(r)
-                writer.writerow(r)
+                    for field in midterm_task1.fieldnames:
+                        if r[field] not in db[field]:
+                            db[field][r[field]] = []
+                        db[field][r[field]].append(r)
+                    writer.writerow(r)
 
 def read_db(filename: str='memberdata.csv', db=None):
     with open(filename, 'r', newline='') as csvfile:
