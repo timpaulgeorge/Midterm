@@ -59,7 +59,7 @@ def med_valid(record):
     except ValueError as e:
         return False
     
-    return med_d > msd_d
+    return med_d >= msd_d
 
 def rdate_valid(record):
     try:
