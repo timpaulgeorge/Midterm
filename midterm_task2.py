@@ -228,12 +228,20 @@ def merge_db(filename, db, writer):
                     # remove all pointers to overwritten objects in memory (Mno dups)
                     for dr in dups_by_mno:
                         for f in midterm_task1.fieldnames:
-                            db[f][dr[f]].remove(dr)
+                            # Object not in cache anymore? Getting a ValueError for obj not in list
+                            try:
+                                db[f][dr[f]].remove(dr)
+                            except ValueError as e:
+                                continue
 
                     # remove all pointers to overwritten objects in memory (DoB dups)
                     for dr in dob_dups[r['Mno']]:
                         for f in midterm_task1.fieldnames:
-                            db[f][dr[f]].remove(dr)
+                            # Object not in cache anymore? Getting a ValueError for obj not in list
+                            try:
+                                db[f][dr[f]].remove(dr)
+                            except ValueError as e:
+                                continue
 
                     for field in midterm_task1.fieldnames:
                         if r[field] not in db[field]:
