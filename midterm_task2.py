@@ -143,6 +143,19 @@ def init_search_db(members, keys=midterm_task1.fieldnames):
 
     return db
 
+def dob_dups(record, db):
+    output = []
+
+    if 'DoB' not in record:
+        return output
+
+    for r in db['DoB'].get(record['DoB'], []):
+        fname_same = r['First name'] == record['First name']
+        lname_same = r['Last name'] == record['Last name']
+        if fname_same and lname_same:
+            output.append(r)
+    return output
+
 def merge_db(filename, db, writer):
     dob_dups = {}
 
@@ -158,13 +171,7 @@ def merge_db(filename, db, writer):
         if record['Mno'] in db['Mno']:
             is_duplicate = True
         if record['DoB'] in db['DoB']:
-            dob_dups[record['Mno']] = []
-            for r in db['DoB'].get(record['DoB'], []):
-                fname_same = r['First name'] == record['First name']
-                lname_same = r['Last name'] == record['Last name']
-                if fname_same and lname_same:
-                    dob_dups[record['Mno']].append(r)
-
+            dob_dups[record['Mno']] = dob_dups(record, db)
             is_duplicate = any(dob_dups[record['Mno']])
 
         if is_duplicate:
@@ -304,8 +311,9 @@ def add_member(db, writer=None):
     record = {}
     for field in midterm_task1.fieldnames[1:]:
         field_valid = False
+        dup_by_dob = [0]
         
-        while not field_valid:
+        while (not field_valid) or (dup_by_dob):
             data = input('{0}:: '.format(field))
             
             if not data:
@@ -317,8 +325,13 @@ def add_member(db, writer=None):
 
             record[field] = data
             field_valid = bool(not validate_member(record, keys=[field]))
+            # final comprehensive uniqueness check
+            # make sure that there's no DoB-Fname-Lname combos same as this
+            dup_by_dob = dob_dups(record, db)
 
     record['Mno'] = str(max(int(s.lstrip('0')) for s in (db['Mno'].keys() or ["-1"])) + 1).zfill(6)
+
+
 #    record['Mno'] = prev_mno + 1
 #    record['Mno'] = max(int(s) for s in search_db['Mno'].keys()) + 1
     for field in midterm_task1.fieldnames:
