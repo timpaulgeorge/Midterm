@@ -153,7 +153,7 @@ def merge_db(filename, db, writer):
             is_duplicate = True
         if record['DoB'] in db['DoB']:
             dob_dups[record] = [
-                r for r in db['DoB'].get(record['DoB'], [])
+                r for r in db['DoB'].get(record['DoB'], []) if
                 r['First name'] == record['First name'] and
                 r['Last name'] == record['Last name']
             ]
