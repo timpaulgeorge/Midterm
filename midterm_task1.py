@@ -4,6 +4,9 @@ Created on Tue Jun 18 12:51:50 2019
 
 @author: timpa
 """
+from dateutil.relativedelta import relativedelta
+
+from argparse import ArgumentParser
 import csv
 import string
 import random
@@ -14,6 +17,7 @@ from datetime import date, timedelta
 
 fieldnames = ['Mno', 'First name', 'MI', 'Last name', 'DoB', 'Address', 'Status', 'msd', 'med', 'rdate', 'Phone', 'Email', 'Notes']
 nonessential_fields = {'med', 'Email', 'Notes', 'Address', 'MI'}
+essential_fields = set(fieldnames) - nonessential_fields
 First_name_list=["jay", "jim", "roy", "axel", "billy", "charlie", "jax", 
 "gina", "paul","ringo", "ally", "nicky", "cam", "ari", "trudie", "cal", "carl", 
 "lady", "lauren","ichabod", "arthur", "ashley", "drake", "kim", "julio", "lorraine", 
@@ -27,7 +31,7 @@ statuses = ["None", "Basic", "Silver", "Gold", "Platinum"]
 
 min_m_date = date(1981, 1, 1)
 #min_b_date = date(min_m_date.year - 18, min_m_date.month, min_m_date.day)
-year = timedelta(days=365.25)
+year = relativedelta(years=1)
 lifespan = 80 * year
 renewal_span = 5 * year
 imma_adult = 18 * year
@@ -111,7 +115,7 @@ Last name:
 
 def gen_member_data(filename: str='memberdata.csv', num_mems: int=1000):
     with open(filename, 'w', newline='') as csvfile:
-        writer=csv.DictWriter(csvfile, restval='missing this category', fieldnames=fieldnames)
+        writer=csv.DictWriter(csvfile, restval='', fieldnames=fieldnames)
         writer.writeheader()
         used_ids = set()
         used_ppl = set()
@@ -120,4 +124,11 @@ def gen_member_data(filename: str='memberdata.csv', num_mems: int=1000):
             writer.writerow(record)
 
 if __name__ == "__main__":
-    gen_member_data()
+    aparser = ArgumentParser()
+    aparser.add_argument('-no', type=int, default=1000,
+        help="# of random members to generate")
+    aparser.add_argument('-fname', type=str, default='memberdata.csv',
+        help="path to write the new file")
+    args = aparser.parse_args()
+
+    gen_member_data(filename=args.fname, num_mems=args.no)
