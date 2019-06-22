@@ -13,17 +13,20 @@ from dateutil.relativedelta import relativedelta
 import keyboard
 
 import csv
-from datetime import date
+from datetime import date, datetime
 import functools
 import os
 import re
 import sys
 import threading
 
+def d_from_mdy(s):
+    return datetime.strptime(s, '%b %d %Y').date()
+
 def dob_valid(record):
     try:
         dob = record['DoB']
-        dob_d = date.fromisoformat(dob)
+        dob_d = d_from_mdy(dob)
         when_18 = dob_d + midterm_task1.imma_adult # Needed to avoid comparing relativedeltas
     except ValueError as e:
         return False
@@ -32,14 +35,14 @@ def dob_valid(record):
 def msd_valid(record):
     try:
         dob = record['DoB']
-        dob_d = date.fromisoformat(dob)
+        dob_d = d_from_mdy(dob)
         when_18 = dob_d + midterm_task1.imma_adult # Needed to avoid comparing relativedeltas
     except ValueError as e:
         return False
     
     try:
         msd = record['msd']
-        msd_d = date.fromisoformat(msd)
+        msd_d = d_from_mdy(msd)
     except ValueError as e:
         return False
 
@@ -51,13 +54,13 @@ def med_valid(record):
     
     try:
         msd = record['msd']
-        msd_d = date.fromisoformat(msd)
+        msd_d = d_from_mdy(msd)
     except ValueError as e:
         return False
 
     try:
         med = record['med']
-        med_d = date.fromisoformat(med)
+        med_d = d_from_mdy(med)
     except ValueError as e:
         return False
     
@@ -66,21 +69,21 @@ def med_valid(record):
 def rdate_valid(record):
     try:
         msd = record['msd']
-        msd_d = date.fromisoformat(msd)
+        msd_d = d_from_mdy(msd)
         max_rdate = msd_d + midterm_task1.renewal_span
     except ValueError as e:
         return False
 
     try:
         rdate = record['rdate']
-        rdate_d = date.fromisoformat(rdate)
+        rdate_d = d_from_mdy(rdate)
     except ValueError as e:
         return False
     
     return rdate_d <= max_rdate
 
 def date_filter(key, min_years, max_years, record):
-    d = date.fromisoformat(record[key])
+    d = d_from_mdy(record[key])
     min_year_d = relativedelta(years=min_years) + d
     max_year_d = relativedelta(years=max_years) + d
     today = date.today()
@@ -118,12 +121,12 @@ HELP_TEXT = {
     'First name': 'Abcdefg',
     'MI': 'A',
     'Last name': 'Abcdefg',
-    'DoB': 'YYYY-mm-dd',
+    'DoB': 'mmm dd YYYY',
     'Address': '123456 Something St',
     'Status': 'None, Basic, Gold, Silver, Platinum',
-    'msd': 'YYYY-mm-dd (defaults to today)',
-    'med': 'YYYY-mm-dd (or blank)',
-    'rdate': 'YYYY-mm-dd (blank defaults to msd + 1 year)',
+    'msd': 'mmm dd YYYY (defaults to today)',
+    'med': 'mmm dd YYYY (or blank)',
+    'rdate': 'mmm dd YYYY (blank defaults to msd + 1 year)',
     'Phone': '0001112222',
     'Email': 'Nothing OR xxx@yyy.com',
     'Notes': 'Anything, really.'
@@ -335,9 +338,9 @@ def add_member(db, writer=None):
             
             if not data:
                 if field == 'msd':
-                    data = date.today().isoformat()
+                    data = date.today().strftime('%b %d %Y')
                 elif field == 'rdate':
-                    data = (date.fromisoformat(record['msd']) + midterm_task1.year).isoformat()
+                    data = (d_from_mdy(record['msd']) + midterm_task1.year).strftime('%b %d %Y')
                 print("Setting", field, "to", data, "...")
 
             record[field] = data
@@ -368,7 +371,7 @@ def add_member(db, writer=None):
 def remove_member(record, db, writer=None):
     old_member_level = record['Status']
     record['Status'] = 'None'
-    record['med'] = date.today().isoformat()
+    record['med'] = date.today().strftime('%b %d %Y')
 
     db['Status'][old_member_level].remove(record)
     db['Status'][record['Status']].append(record)
@@ -386,7 +389,7 @@ def mod_status_member(record, db, up=True, writer=None):
     else:
         record['Status'] = midterm_task1.statuses[max(status_idx - 1, 0)]
 
-    record['rdate'] = (date.today() + midterm_task1.year).isoformat()
+    record['rdate'] = (date.today() + midterm_task1.year).strftime('%b %d %Y')
     db['Status'][old_member_level].remove(record)
     db['Status'][record['Status']].append(record)
 
@@ -602,7 +605,7 @@ def ui_loop(filename: str='memberdata.csv'):
                                     continue
 
                             for r in records:
-                                r['rdate'] = (date.fromisoformat(r['rdate']) + relativedelta(months=bump_months)).isoformat()
+                                r['rdate'] = (d_from_mdy(r['rdate']) + relativedelta(months=bump_months)).strftime('%b %d %Y')
                             for ov in old_values:
                                 db['rdate'][ov[0]].remove(ov[1])
                                 if ov[1]['rdate'] not in db['rdate']:
