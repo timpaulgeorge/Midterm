@@ -88,12 +88,12 @@ def rndm_record(used_ids=set(), used_ppl=set()):
         'Last name': lname,
         'Mno': mno,
         'MI': random.choice(string.ascii_uppercase),
-        'DoB': dob,
+        'DoB': dob.strftime('%b %d %Y'),
         'Address': rndm_addr(),
         'Status': random.choice(statuses),
-        'msd': msd,
-        'med': med,
-        'rdate': rndm_rdate(msd),
+        'msd': msd.strftime('%b %d %Y'),
+        'med': med.strftime('%b %d %Y'),
+        'rdate': rndm_rdate(msd).strftime('%b %d %Y'),
         'Phone': str(randint(0, 1E10-1)).zfill(10),
     }
     
