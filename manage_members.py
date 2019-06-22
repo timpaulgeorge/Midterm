@@ -499,7 +499,7 @@ def ui_loop(filename: str='memberdata.csv'):
                 if choice == 'q':
                     running = False
                 elif choice == 'a':
-                    add_member(db)
+                    add_member(db, writer=writer)
                 elif choice == 'e':
                     # import text file
                     # it's always appending
