@@ -20,6 +20,20 @@ import re
 import sys
 import threading
 
+def sub_record(old_record, new_record, filename='memberdata.csv'):
+    with open(filename, 'r', newline='') as csvfile:
+        reader = csv.DictReader(csvfile, fieldnames=midterm_task1.fieldnames)
+        next(reader) # skip header row
+        with open('tmp.csv', 'a', newline='') as tmpfile:
+            writer=csv.DictWriter(tmpfile, restval='', fieldnames=midterm_task1.fieldnames)
+            writer.writeheader()
+            for row in reader:
+                if row == old_record:
+                    writer.writerow(new_record)
+                else:
+                    writer.writerow(row)
+    os.replace('tmp.csv', filename)
+
 def d_from_mdy(s):
     return datetime.strptime(s, '%b %d %Y').date()
 
@@ -245,6 +259,8 @@ def merge_db(filename, db, writer):
                         db[field][r[field]].append(r)
                     writer.writerow(r)
         if dup_records:
+            # fix this to to overwrite all old records, including DoB dups
+            # for now it just shoves them in
             prompt = "Overwrite {} duplicate members? ".format(len(dup_records))
             if input(prompt) in 'Yy':
                 print("Adding...")
@@ -369,17 +385,18 @@ def add_member(db, writer=None):
     return record
 
 def remove_member(record, db, writer=None):
+    orecord = record.copy()
     old_member_level = record['Status']
     record['Status'] = 'None'
     record['med'] = date.today().strftime('%b %d %Y')
 
     db['Status'][old_member_level].remove(record)
     db['Status'][record['Status']].append(record)
-    if writer:
-        writer.writerow(record)
+    sub_record(orecord, record)
 
 def mod_status_member(record, db, up=True, writer=None):
     # upgrades member status and adjusts renewal date in place
+    orecord = record.copy()
     old_member_level = record['Status']
     status_idx = midterm_task1.statuses.index(record.get('Status', 'None'))
 #    print("To upgrade, type: record['Status'] = mod_status_member(record, up=True)\n"
@@ -393,10 +410,10 @@ def mod_status_member(record, db, up=True, writer=None):
     db['Status'][old_member_level].remove(record)
     db['Status'][record['Status']].append(record)
 
-    if writer:
-        writer.writerow(record)
+    sub_record(orecord, record)
 
 def mod_member_data(record, field, db, writer=None):
+    orecord = record.copy()
     field_valid = False
     field = input("Field to change? ")
     old_value = record[field]
@@ -407,11 +424,13 @@ def mod_member_data(record, field, db, writer=None):
         fix_fields = validate_member(record, keys=[field])
         field_valid = bool(not fix_fields)
 
-    db[field][old_value].remove(record)
+    if old_value in db[field]:
+        db[field][old_value].remove(record)
+    if new_value not in db[field]:
+        db[field][new_value] = []
     db[field][new_value].append(record)
 
-    if writer:
-        writer.writerow(record)
+    sub_record(orecord, record)
 
 # Handle key checks in separate thread:: https://stackoverflow.com/a/55822238
 # Escape key detect:: https://stackoverflow.com/questions/21653072/exiting-a-loop-by-pressing-a-escape-key
@@ -471,7 +490,7 @@ def ui_loop(filename: str='memberdata.csv'):
                 if choice == 'q':
                     running = False
                 elif choice == 'a':
-                    add_member(db, writer=writer)
+                    add_member(db)
                 elif choice == 'e':
                     # import text file
                     # it's always appending
@@ -526,7 +545,7 @@ def ui_loop(filename: str='memberdata.csv'):
                         subchoice = input("Sure you wanna delete them? (Y/N) ")
 
                         if subchoice not in "Yy": continue
-                        remove_member(record, db, writer=writer)
+                        remove_member(record, db)
 
                     elif choice == 'c':
                         # upgrade/downgrade chosen member
@@ -535,14 +554,14 @@ def ui_loop(filename: str='memberdata.csv'):
                         if subchoice not in "YyNn": continue
                         up = subchoice in "Yy"
 
-                        mod_status_member(record, db, up=up, writer=writer)
+                        mod_status_member(record, db, up=up)
 
                     elif choice == 'd':
                         # modify member data
                         field_valid = False
                         subchoice = input("Field to change? ")
 
-                        mod_member_data(record, subchoice, db, writer=writer)
+                        mod_member_data(record, subchoice, db)
 
                     elif choice == 'f':
                         # member search only
@@ -595,7 +614,7 @@ def ui_loop(filename: str='memberdata.csv'):
 
                         if bulk_choice == 'a':
                             ## push renewal date
-                            old_values = [ (r['rdate'], r) for r in records ]
+                            old_values = dict((r['rdate'], (r.copy(), r)) for r in records)
 
                             while True:
                                 try:
@@ -605,13 +624,17 @@ def ui_loop(filename: str='memberdata.csv'):
                                     continue
 
                             for r in records:
+                                # old_r = r.copy()
                                 r['rdate'] = (d_from_mdy(r['rdate']) + relativedelta(months=bump_months)).strftime('%b %d %Y')
-                            for ov in old_values:
-                                db['rdate'][ov[0]].remove(ov[1])
-                                if ov[1]['rdate'] not in db['rdate']:
-                                    db['rdate'][ov[1]['rdate']] = []
-                                db['rdate'][ov[1]['rdate']].append(ov[1])
-                                writer.writerow(ov[1])
+
+                            for old_rd, rrs in old_values.items():
+                                old_r, new_r = rrs
+                                # removes from old rdate by mem pointer?
+                                db['rdate'][old_rd].remove(new_r)
+                                if new_r['rdate'] not in db['rdate']:
+                                    db['rdate'][new_r['rdate']] = []
+                                db['rdate'][new_r['rdate']].append(new_r)
+                                sub_record(old_r, new_r)
 
                         elif bulk_choice == 'b':
                             ## change membership status
@@ -621,12 +644,12 @@ def ui_loop(filename: str='memberdata.csv'):
                             up = subchoice in "Yy"
 
                             for r in records:
-                                mod_status_member(r, db, up=up, writer=writer)
+                                mod_status_member(r, db, up=up)
 
                         elif bulk_choice == 'c':
                             ## delete members
                             for r in records:
-                                remove_member(r, db, writer=writer)
+                                remove_member(r, db)
                 else:
                     in_screen = False
             except BackOutException as e:
