@@ -6,7 +6,7 @@ Created on Tue Jun 18 16:21:42 2019
 """
 
 from ctype_async_raise import ctype_async_raise
-import midterm_task1
+import gen_member_data
 
 # please install from pip plox
 from dateutil.relativedelta import relativedelta
@@ -22,10 +22,10 @@ import threading
 
 def sub_record(old_record, new_record, filename='memberdata.csv'):
     with open(filename, 'r', newline='') as csvfile:
-        reader = csv.DictReader(csvfile, fieldnames=midterm_task1.fieldnames)
+        reader = csv.DictReader(csvfile, fieldnames=gen_member_data.fieldnames)
         next(reader) # skip header row
         with open('tmp.csv', 'a', newline='') as tmpfile:
-            writer=csv.DictWriter(tmpfile, restval='', fieldnames=midterm_task1.fieldnames)
+            writer=csv.DictWriter(tmpfile, restval='', fieldnames=gen_member_data.fieldnames)
             writer.writeheader()
             for row in reader:
                 if row == old_record:
@@ -41,7 +41,7 @@ def dob_valid(record):
     try:
         dob = record['DoB']
         dob_d = d_from_mdy(dob)
-        when_18 = dob_d + midterm_task1.imma_adult # Needed to avoid comparing relativedeltas
+        when_18 = dob_d + gen_member_data.imma_adult # Needed to avoid comparing relativedeltas
     except ValueError as e:
         return False
     return date.today() >= when_18
@@ -50,7 +50,7 @@ def msd_valid(record):
     try:
         dob = record['DoB']
         dob_d = d_from_mdy(dob)
-        when_18 = dob_d + midterm_task1.imma_adult # Needed to avoid comparing relativedeltas
+        when_18 = dob_d + gen_member_data.imma_adult # Needed to avoid comparing relativedeltas
     except ValueError as e:
         return False
     
@@ -60,7 +60,7 @@ def msd_valid(record):
     except ValueError as e:
         return False
 
-    return (msd_d >= when_18) and (msd_d >= midterm_task1.min_m_date)
+    return (msd_d >= when_18) and (msd_d >= gen_member_data.min_m_date)
 
 def med_valid(record):
     if not record.get('med', ''):
@@ -84,7 +84,7 @@ def rdate_valid(record):
     try:
         msd = record['msd']
         msd_d = d_from_mdy(msd)
-        max_rdate = msd_d + midterm_task1.renewal_span
+        max_rdate = msd_d + gen_member_data.renewal_span
     except ValueError as e:
         return False
 
@@ -108,10 +108,10 @@ def date_filter(key, min_years, max_years, record):
         return today >= min_year_d and today <= max_year_d
 
 def status_filter(min_status, max_status, record):
-    sts = midterm_task1.statuses.index(record['Status'])
-    sts_idx_0 = midterm_task1.statuses.index(min_status)
+    sts = gen_member_data.statuses.index(record['Status'])
+    sts_idx_0 = gen_member_data.statuses.index(min_status)
     if max_status:
-        sts_idx_1 = midterm_task1.statuses.index(max_status)
+        sts_idx_1 = gen_member_data.statuses.index(max_status)
         return sts >= min_status and sts <= max_status
     else:
         return sts >= min_status
@@ -148,11 +148,11 @@ HELP_TEXT = {
 
 def init_blank_search_db():
     db = {}
-    for k in midterm_task1.fieldnames:
+    for k in gen_member_data.fieldnames:
         db[k] = {}
     return db
 
-def init_search_db(members, keys=midterm_task1.fieldnames):
+def init_search_db(members, keys=gen_member_data.fieldnames):
     # Extract here later
     
     # In-memory view of membership database
@@ -194,7 +194,7 @@ def merge_db(filename, db, writer):
     dob_dups = {}
 
     def handle_record(record):
-        is_missing = bool(record.keys() - midterm_task1.essential_fields)
+        is_missing = bool(record.keys() - gen_member_data.essential_fields)
         is_invalid = validate_member(record)
         if is_invalid:
             # flag as not okay
@@ -217,7 +217,7 @@ def merge_db(filename, db, writer):
         return True, None
 
     with open(filename, 'r', newline='') as csvfile:
-        reader = csv.DictReader(csvfile, fieldnames=midterm_task1.fieldnames)
+        reader = csv.DictReader(csvfile, fieldnames=gen_member_data.fieldnames)
         next(reader) # skip header row
 
         ok_records = []
@@ -243,7 +243,7 @@ def merge_db(filename, db, writer):
         if ok_records:
             print("Adding {} entries to the DB".format(len(ok_records)))
             for r in ok_records:
-                for field in midterm_task1.fieldnames:
+                for field in gen_member_data.fieldnames:
                     if r[field] not in db[field]:
                         db[field][r[field]] = []
                     db[field][r[field]].append(r)
@@ -253,7 +253,7 @@ def merge_db(filename, db, writer):
             if input(prompt) in 'Yy':
                 print("Adding...")
                 for r in missing_records:
-                    for field in midterm_task1.fieldnames:
+                    for field in gen_member_data.fieldnames:
                         if r[field] not in db[field]:
                             db[field][r[field]] = []
                         db[field][r[field]].append(r)
@@ -270,7 +270,7 @@ def merge_db(filename, db, writer):
 
                     # remove all pointers to overwritten objects in memory (Mno dups)
                     for dr in dups_by_mno:
-                        for f in midterm_task1.fieldnames:
+                        for f in gen_member_data.fieldnames:
                             # Object not in cache anymore? Getting a ValueError for obj not in list
                             try:
                                 db[f][dr[f]].remove(dr)
@@ -279,14 +279,14 @@ def merge_db(filename, db, writer):
 
                     # remove all pointers to overwritten objects in memory (DoB dups)
                     for dr in dob_dups[r['Mno']]:
-                        for f in midterm_task1.fieldnames:
+                        for f in gen_member_data.fieldnames:
                             # Object not in cache anymore? Getting a ValueError for obj not in list
                             try:
                                 db[f][dr[f]].remove(dr)
                             except ValueError as e:
                                 continue
 
-                    for field in midterm_task1.fieldnames:
+                    for field in gen_member_data.fieldnames:
                         if r[field] not in db[field]:
                             db[field][r[field]] = []
                         db[field][r[field]].append(r)
@@ -294,13 +294,13 @@ def merge_db(filename, db, writer):
 
 def read_db(filename: str='memberdata.csv', db=None):
     with open(filename, 'r', newline='') as csvfile:
-        reader = csv.DictReader(csvfile, fieldnames=midterm_task1.fieldnames)
+        reader = csv.DictReader(csvfile, fieldnames=gen_member_data.fieldnames)
         next(reader) # skip header row
         return init_search_db(row for row in reader)
 
 def write_db(filename: str='memberdata.csv'):
     with open(filename, 'a', newline='') as csvfile:
-        writer=csv.DictWriter(csvfile, restval='', fieldnames=midterm_task1.fieldnames)
+        writer=csv.DictWriter(csvfile, restval='', fieldnames=gen_member_data.fieldnames)
         writer.writeheader()
         
 
@@ -318,7 +318,7 @@ def search_member(db, kc_pairs):
     
     return matching_values
 
-def validate_member(record, keys=midterm_task1.fieldnames):
+def validate_member(record, keys=gen_member_data.fieldnames):
     fix_these_fields = []
 
     for field in keys:
@@ -340,12 +340,12 @@ def add_member(db, writer=None):
     
     db = midterm_task2.read_db()
     with open('memberdata.csv', 'a', newline='') as csvfile:
-        writer=csv.DictWriter(csvfile, restval='', fieldnames=midterm_task1.fieldnames)
+        writer=csv.DictWriter(csvfile, restval='', fieldnames=gen_member_data.fieldnames)
         midterm_task2.add_member(db, writer=writer)
     
     """
     record = {}
-    for field in midterm_task1.fieldnames[1:]:
+    for field in gen_member_data.fieldnames[1:]:
         field_valid = False
         dup_by_dob = [0]
         
@@ -356,7 +356,7 @@ def add_member(db, writer=None):
                 if field == 'msd':
                     data = date.today().strftime('%b %d %Y')
                 elif field == 'rdate':
-                    data = (d_from_mdy(record['msd']) + midterm_task1.year).strftime('%b %d %Y')
+                    data = (d_from_mdy(record['msd']) + gen_member_data.year).strftime('%b %d %Y')
                 print("Setting", field, "to", data, "...")
 
             record[field] = data
@@ -370,7 +370,7 @@ def add_member(db, writer=None):
 
 #    record['Mno'] = prev_mno + 1
 #    record['Mno'] = max(int(s) for s in search_db['Mno'].keys()) + 1
-    for field in midterm_task1.fieldnames:
+    for field in gen_member_data.fieldnames:
         if record[field] not in db[field]:
             db[field][record[field]] = []
         db[field][record[field]].append(record)
@@ -398,15 +398,15 @@ def mod_status_member(record, db, up=True, writer=None):
     # upgrades member status and adjusts renewal date in place
     orecord = record.copy()
     old_member_level = record['Status']
-    status_idx = midterm_task1.statuses.index(record.get('Status', 'None'))
+    status_idx = gen_member_data.statuses.index(record.get('Status', 'None'))
 #    print("To upgrade, type: record['Status'] = mod_status_member(record, up=True)\n"
 #          "To downgrade, type: record['Status'] = mod_status_member(record, up=False)")
     if up:
-        record['Status'] = midterm_task1.statuses[min(status_idx + 1, 4)]
+        record['Status'] = gen_member_data.statuses[min(status_idx + 1, 4)]
     else:
-        record['Status'] = midterm_task1.statuses[max(status_idx - 1, 0)]
+        record['Status'] = gen_member_data.statuses[max(status_idx - 1, 0)]
 
-    record['rdate'] = (date.today() + midterm_task1.year).strftime('%b %d %Y')
+    record['rdate'] = (date.today() + gen_member_data.year).strftime('%b %d %Y')
     db['Status'][old_member_level].remove(record)
     db['Status'][record['Status']].append(record)
 
@@ -466,7 +466,7 @@ def ui_loop(filename: str='memberdata.csv'):
     db = read_db(filename=filename)
 
     with open(filename, 'a', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, restval='', fieldnames=midterm_task1.fieldnames)
+        writer = csv.DictWriter(csvfile, restval='', fieldnames=gen_member_data.fieldnames)
 
         def hotkey_handler():
             ctype_async_raise(threading.main_thread(), BackOutException)
