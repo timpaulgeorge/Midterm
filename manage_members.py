@@ -12,6 +12,7 @@ import gen_member_data
 from dateutil.relativedelta import relativedelta
 import keyboard
 
+from argparse import ArgumentParser
 import csv
 from datetime import date, datetime
 import functools
@@ -660,4 +661,18 @@ def ui_loop(filename: str='memberdata.csv'):
                     sys.exit(0)
 
 if __name__ == "__main__":
-    ui_loop()
+    aparser = ArgumentParser()
+    aparser.add_argument('--graph', type=str, choices=['age', 'status', 'year'])
+    args = aparser.parse_args()
+    if args.graph is None:
+        ui_loop()
+    else:
+        if args.graph == 'age':
+            print('Age graph')
+            pass
+        elif args.graph == 'status':
+            print('Status graph')
+            pass
+        elif args.graph == 'year':
+            print('Year graph')
+            pass
