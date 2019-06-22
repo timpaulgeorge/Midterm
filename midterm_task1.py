@@ -38,7 +38,9 @@ imma_adult = 18 * year
 min_b_date = date.today() - imma_adult
 
 def rndm_bdate():
-    return min_b_date - timedelta(days=randint(0, lifespan.days))
+    lifespan_end = min_b_date - lifespan
+    td = min_b_date - lifespan_end
+    return min_b_date - timedelta(days=randint(0, td.days))
 
 def rndm_mdate(bdate):
     is_18_when = bdate + imma_adult
@@ -52,7 +54,9 @@ def rndm_edate(mdate):
     return mdate + timedelta(days=random.randint(0, (date.today() - mdate).days))
 
 def rndm_rdate(mdate):
-    return mdate + timedelta(days=randint(0, renewal_span.days))
+    max_renewal_d = mdate + renewal_span
+    td = max_renewal_d - mdate
+    return mdate + timedelta(days=randint(0, td.days))
 
 def rndm_addr():
     address_fmt = "{0} {1} {2}"
