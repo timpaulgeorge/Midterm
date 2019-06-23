@@ -4,18 +4,34 @@ Created on Fri Jun 21 18:49:46 2019
 
 @author: tim george
 "run Manage_members.py" works perfectly for me in IPython console. The UI shows up.
-This is a member management program. Use the prompts run through the UI 
+This is a member management program. Use the prompts to fnavigate through the UI 
 and select the options which calls various functions and modifies the .csv file
 generated in gen_member_data
 """
 # https://gist.github.com/liuw/2407154
-import ctypes # Calm down, this has become standard library since 2.5
+import ctypes
 import threading
 import time
 import shutil
+import gen_member_data
+from dateutil.relativedelta import relativedelta
+import keyboard
+from argparse import ArgumentParser
+import csv
+from datetime import date, datetime
+import functools
+import os
+import re
+import sys
+import numpy as np
+import matplotlib.pyplot as plt
+from collections import Counter
+from matplotlib.pyplot import figure
+#import/install from pip if not installed already.
 
 NULL = 0
-
+#this one was very diffuicult, this should let us use <esc><enter> to pull out
+#our UI
 def ctype_async_raise(thread_obj, exception):
     found = False
     target_tid = 0
@@ -42,33 +58,17 @@ def ctype_async_raise(thread_obj, exception):
         ctypes.pythonapi.PyThreadState_SetAsyncExc(target_tid, NULL)
         raise SystemError("PyThreadState_SetAsyncExc failed")
 
-import gen_member_data
- 
-# please install from pip plox
-from dateutil.relativedelta import relativedelta
-import keyboard
- 
-from argparse import ArgumentParser
-import csv
-from datetime import date, datetime
-import functools
-import os
-import re
-import sys
-import threading
- 
-import numpy as np
-import matplotlib.pyplot as plt
-from collections import Counter
-from matplotlib.pyplot import figure
+
  
 statuses = ["None", "Basic", "Silver", "Gold", "Platinum"]
 sorted_statuses=sorted(statuses)
- 
+#this function allows us to 'rewrite' our old record, since we don't just want to 
+#duplicate our old entry, but replace it with edited information
 def sub_record(old_record, new_record, filename='memberdata.csv'):
     with open(filename, 'r', newline='') as csvfile:
         reader = csv.DictReader(csvfile, fieldnames=gen_member_data.fieldnames)
         next(reader) # skip header row
+        #the temp file created allows the fxn to really work here
         with open('tmp.csv', 'a', newline='') as tmpfile:
             writer=csv.DictWriter(tmpfile, restval='', fieldnames=gen_member_data.fieldnames)
             writer.writeheader()
@@ -77,15 +77,21 @@ def sub_record(old_record, new_record, filename='memberdata.csv'):
                     writer.writerow(new_record)
                 else:
                     writer.writerow(row)
+        #we replace/rename the temp file back to our original, but since that
+        #wasn't working, looks like shutil does
     shutil.move('tmp.csv', filename)
- 
+#strips our date in a format and makes it 'datetime' object 
 def d_from_mdy(s):
     return datetime.strptime(s, '%b %d %Y').date()
- 
+
+#the following fxns are validator fxns we can call later 
 def dob_valid(record):
     try:
+        #picking up our DoB values
         dob = record['DoB']
+        #change value into useable format
         dob_d = d_from_mdy(dob)
+        #determine if member is 18
         when_18 = dob_d + gen_member_data.imma_adult # Needed to avoid comparing relativedeltas
     except ValueError as e:
         return False
@@ -95,18 +101,21 @@ def msd_valid(record):
     try:
         dob = record['DoB']
         dob_d = d_from_mdy(dob)
+        #get when member is 18
         when_18 = dob_d + gen_member_data.imma_adult # Needed to avoid comparing relativedeltas
     except ValueError as e:
         return False
    
     try:
         msd = record['msd']
+        #get msd value
         msd_d = d_from_mdy(msd)
     except ValueError as e:
         return False
- 
+    #compare msd and 18 yrs
     return (msd_d >= when_18) and (msd_d >= gen_member_data.min_m_date)
- 
+
+#very similar to msd validator 
 def med_valid(record):
     if not record.get('med', ''):
         return True
@@ -122,7 +131,7 @@ def med_valid(record):
         med_d = d_from_mdy(med)
     except ValueError as e:
         return False
-   
+    #similar to msd - med can't be before msd
     return med_d >= msd_d
  
 def rdate_valid(record):
@@ -138,10 +147,11 @@ def rdate_valid(record):
         rdate_d = d_from_mdy(rdate)
     except ValueError as e:
         return False
-   
+   #makes sure our renewal date isn't over our max renewal date (5 years)
     return rdate_d <= max_rdate
  
 def date_filter(key, min_years, max_years, record):
+    #makes sure our dates make sense
     d = d_from_mdy(record[key])
     min_year_d = relativedelta(years=min_years) + d
     max_year_d = relativedelta(years=max_years) + d
@@ -153,6 +163,7 @@ def date_filter(key, min_years, max_years, record):
         return today >= min_year_d and today <= max_year_d
  
 def status_filter(min_status, max_status, record):
+    #filters valid status's
     sts = gen_member_data.statuses.index(record['Status'])
     sts_idx_0 = gen_member_data.statuses.index(min_status)
     if max_status:
@@ -161,8 +172,9 @@ def status_filter(min_status, max_status, record):
     else:
         return sts >= min_status
  
+#these formats are what our filters are looking for. Makes sure user inputs make sense
 MEMBER_FORMAT = {
-    # 'Mno': re.compile(r'\d{6}'),
+    # 'Mno': re.compile(r'\d{6}'), #we don't want Mno input from user
     'First name': re.compile(r'[A-Za-z]+'),
     'MI': re.compile(r'[A-Z]'),
     'Last name': re.compile(r'[A-Za-z]+'),
@@ -190,22 +202,20 @@ HELP_TEXT = {
     'Email': 'Nothing OR xxx@yyy.com',
     'Notes': 'Anything, really.'
 }
- 
+#made this search for testing purposes
 def init_blank_search_db():
     db = {}
     for k in gen_member_data.fieldnames:
         db[k] = {}
     return db
- 
+
+#this searches our members based on keys
 def init_search_db(members, keys=gen_member_data.fieldnames):
-    # Extract here later
-   
-    # In-memory view of membership database
+    # pull out our database and view it in memory
     db = {}
- 
-    # For every member...
+    # For every member
     for m in members:
-        # and every member data field...
+        # and every member data field
         for k in keys:
             # Create a dictionary listing all values of field
             if k not in db.keys():
@@ -221,20 +231,24 @@ def init_search_db(members, keys=gen_member_data.fieldnames):
     # db['Mno']['123090'] <- results are the stuff inside
  
     return db
- 
+
+#looking for DoB duplicates
 def dob_dups(record, db):
     output = []
  
     if 'DoB' not in record:
         return output
- 
+    #looks in database for DoB and gets values
     for r in db['DoB'].get(record['DoB'], []):
         fname_same = r['First name'] == record['First name']
         lname_same = r['Last name'] == record['Last name']
+        #find all the duplicate first and last names
         if fname_same and lname_same:
+            #if it does find duplicate, adds it to duplicate list
             output.append(r)
     return output
- 
+
+#merge new list. complete with validating, missing, and duplicate checks
 def merge_db(filename, db, writer):
     dob_dups = {}
  
@@ -262,22 +276,24 @@ def merge_db(filename, db, writer):
             return False, 'missing'
  
         return True, None
- 
+    
+    #reading new file
     with open(filename, 'r', newline='') as csvfile:
         reader = csv.DictReader(csvfile, fieldnames=gen_member_data.fieldnames)
         next(reader) # skip header row
- 
+        #our lists and counter for invalid stuff in new list
         ok_records = []
         invalid_count = 0
         missing_records = []
         dup_records = []
- 
+        
  
         for row in reader:
             ok, reason = handle_record(row)
             print(">>", row, ok, reason)
             if ok:
                 ok_records.append(row)
+            #following steps identify errors
             else:
                 if reason == 'invalid':
                     invalid_count += 1
@@ -285,9 +301,10 @@ def merge_db(filename, db, writer):
                     missing_records.append(row)
                 elif reason == 'duplicate':
                     dup_records.append(row)
- 
+        #prints the errors out
         if invalid_count:
             print("Skipped {} entries".format(invalid_count))
+        #prints our good records
         if ok_records:
             print("Adding {} entries to the DB".format(len(ok_records)))
             for r in ok_records:
@@ -296,6 +313,7 @@ def merge_db(filename, db, writer):
                         db[field][r[field]] = []
                     db[field][r[field]].append(r)
                 writer.writerow(r)
+            #if missing sections, prompts for push and adds if so
         if missing_records:
             prompt = "Add {} members with missing attributes? ".format(len(missing_records))
             if input(prompt) in 'Yy':
@@ -306,6 +324,7 @@ def merge_db(filename, db, writer):
                             db[field][r[field]] = []
                         db[field][r[field]].append(r)
                     writer.writerow(r)
+        #pushes add duplicate record
         if dup_records:
             # fix this to to overwrite all old records, including DoB dups
             # for now it just shoves them in
@@ -339,24 +358,28 @@ def merge_db(filename, db, writer):
                             db[field][r[field]] = []
                         db[field][r[field]].append(r)
                     writer.writerow(r)
- 
+#simple read fxn 
 def read_db(filename: str='memberdata.csv', db=None):
     with open(filename, 'r', newline='') as csvfile:
         reader = csv.DictReader(csvfile, fieldnames=gen_member_data.fieldnames)
         next(reader) # skip header row
         return init_search_db(row for row in reader)
- 
+
+#simple write fxn
 def write_db(filename: str='memberdata.csv'):
     with open(filename, 'a', newline='') as csvfile:
         writer=csv.DictWriter(csvfile, restval='', fieldnames=gen_member_data.fieldnames)
         writer.writeheader()
        
- 
+#search member fxn from the db with key criterion pairs  
 def search_member(db, kc_pairs):
+    #empty list to be extended later
     matching_values = []
+    #lists our keys that we searched for
     key_list = list(kc_pairs.keys())
+    #allows for multiple keys to be searched for
     key, other_keys = key_list[0], key_list[1:]
-   
+    #if the key values in our database matches the user input, adds it to the list
     for db_key_val in db[key]:
         if kc_pairs[key] in db_key_val:
             matching_values.extend(
@@ -365,7 +388,8 @@ def search_member(db, kc_pairs):
             )
    
     return matching_values
- 
+
+#uses our validator fxns to validate our formatting
 def validate_member(record, keys=gen_member_data.fieldnames):
     fix_these_fields = []
  
@@ -385,7 +409,7 @@ def validate_member(record, keys=gen_member_data.fieldnames):
  
 def add_member(db, writer=None):
     """
-   
+   Do we need this section?
    db = midterm_task2.read_db()
    with open('memberdata.csv', 'a', newline='') as csvfile:
        writer=csv.DictWriter(csvfile, restval='', fieldnames=gen_member_data.fieldnames)
@@ -393,6 +417,7 @@ def add_member(db, writer=None):
    
    """
     record = {}
+    #we don't want Mno included yet, iterate through each fieldname and have user input data
     for field in gen_member_data.fieldnames[1:]:
         field_valid = False
         dup_by_dob = [0]
@@ -431,7 +456,8 @@ def add_member(db, writer=None):
     # update_search_db(record)
    
     return record
- 
+
+#changes record med value to today and swaps status to None
 def remove_member(record, db, writer=None):
     orecord = record.copy()
     old_member_level = record['Status']
@@ -441,7 +467,8 @@ def remove_member(record, db, writer=None):
     db['Status'][old_member_level].remove(record)
     db['Status'][record['Status']].append(record)
     sub_record(orecord, record)
- 
+
+#modify statuses
 def mod_status_member(record, db, up=True, writer=None):
     # upgrades member status and adjusts renewal date in place
     orecord = record.copy()
@@ -459,7 +486,8 @@ def mod_status_member(record, db, up=True, writer=None):
     db['Status'][record['Status']].append(record)
  
     sub_record(orecord, record)
- 
+
+#has user input fieldname that they want to change value and swaps value 
 def mod_member_data(record, field, db, writer=None):
     orecord = record.copy()
     field_valid = False
@@ -491,12 +519,12 @@ def readch():
         ch = msvcrt.getch()  # second call returns the actual key code
     return ch
  
- 
+trying this out
 def check_keys():
     """ Currently not used. """
     while True:  # making a loop
         try:  # used try so that if user pressed other than the given key error will not be shown
-            if keyboard.is_pressed('esc'):  # if key 'q' is pressed
+            if keyboard.is_pressed('esc'):  # if key 'esc' is pressed
                 print('You Pressed A Key!')
                 break  # finishing the loop
             else:
@@ -506,7 +534,8 @@ def check_keys():
  
 class BackOutException(BaseException):
     pass
- 
+
+#attempt at our UI 
 def ui_loop(filename: str='memberdata.csv'):
     # remember to store reference to CSV writer at the beginning of the program
     #thread.start_new_thread(check_keys, ())
@@ -539,6 +568,7 @@ def ui_loop(filename: str='memberdata.csv'):
                 choice = input("What to do? ")
  
                 in_screen = True
+                 #each key press calls our earlier functions
                 if choice == 'q':
                     running = False
                 elif choice == 'a':
@@ -555,7 +585,7 @@ def ui_loop(filename: str='memberdata.csv'):
                     searching = True
                     search_pair = re.compile(r'([^:]+):([^:]+)')
                     while searching:
-                        # TODO: Filter by multiple criteria
+                        # did we do this yet? TODO: Filter by multiple criteria
                         print("Search syntax:: Field name:Criterion[, Field name: Criterion, ...]")
                         kc_pairs = {}
                         query = input("Query? ")
@@ -619,7 +649,7 @@ def ui_loop(filename: str='memberdata.csv'):
                         print("Heading back to menu...")
  
                     elif choice == 'g':
-                        # bulk operation
+                        # bulk operation. this was tough
                         print((
                             "a. Push renewal date.\n"
                             "b. Change membership status.\n"
@@ -637,6 +667,7 @@ def ui_loop(filename: str='memberdata.csv'):
                         ))
  
                         filter_syntax = input('Filter? ')
+                        #use regex to filter
                         age_filter = re.compile(r'age (\d+)( \d+)?', flags=re.I)
                         mem_filter = re.compile(r'member (\d+)( \d+)?', flags=re.I)
                         sts_filter = re.compile(r'status (none|basic|silver|gold|platinum)( none|basic|silver|gold|platinum)?')
@@ -664,7 +695,7 @@ def ui_loop(filename: str='memberdata.csv'):
                         records = [ r for r in records if all(map(lambda x: x(r), criterion)) ]
  
                         if bulk_choice == 'a':
-                            ## push renewal date
+                            # push renewal date
                             old_values = dict((r['rdate'], (r.copy(), r)) for r in records)
  
                             while True:
@@ -688,7 +719,7 @@ def ui_loop(filename: str='memberdata.csv'):
                                 sub_record(old_r, new_r)
  
                         elif bulk_choice == 'b':
-                            ## change membership status
+                            # change membership status
                             subchoice = input("Upgrade, downgrade, or do nothing? (Y/N/*) ")
  
                             if subchoice not in "YyNn": continue
@@ -703,17 +734,17 @@ def ui_loop(filename: str='memberdata.csv'):
                                 remove_member(r, db)
                 else:
                     in_screen = False
+            #<esc><enter> backs us out until it quits
             except BackOutException as e:
                 print("Exception handler!", in_screen)
                 if in_screen:
                     continue
                 else:
                     sys.exit(0)
- 
+#graph section
 def Status():
     #load the data column we want
     membership_status=np.loadtxt('memberdata.csv', dtype=str, skiprows=1, usecols=[6], delimiter=',')
-   
     sorted_status_db=sorted(membership_status)
 #    print(sorted_status_db)
     #get a counter of how many statuses we have
@@ -746,7 +777,7 @@ def Status():
     plt.xlabel('Membership status', fontsize=30)
     plt.ylabel('Number of members', fontsize=30, )
     plt.show()
-#            
+#Age         
 def Age():
     #load our data
     members_age=np.loadtxt('memberdata.csv', dtype='str', skiprows=1, usecols=[4], delimiter=',')
@@ -760,8 +791,6 @@ def Age():
             list_of_ages.append((np.datetime64('today')-np.datetime64(dt)).astype('timedelta64[Y]') / np.timedelta64(1, 'Y'))
         except ValueError as e:
             continue
-        
- 
     sorted_ages=sorted(list_of_ages)
     bin_18_25=[]
     bin_25_35=[]
@@ -829,10 +858,7 @@ def Year():
             msd_year_list.append(dt.year)
         except ValueError as e:
             continue
-
- 
     x_bin_counter=0
-   
     year_bin = Counter(msd_year_list)
     year_span_bin = Counter({(1981, 2020): 0})
    
@@ -843,30 +869,23 @@ def Year():
             if year >= year_span[0] and year <= year_span[1]:
                 # if the year meets criteria, put its count of instances into this bin
                 year_span_bin[year_span] += count
- 
     for i in year_bin:
         for x in range(1981,2020):
             if i == x:
                 x_bin_counter+=1
- 
     #---------------
     #2nd list of data
     med_year_list_z=[]
- 
     for i in sorted_med:
         try:
             dt = datetime.strptime(i,'%m-%d-%Y')
             med_year_list_z.append(dt.year)
         except ValueError as e:
             continue
- 
     z_bin_counter=0
-   
     year_bin_z = Counter(med_year_list_z)
     msd_year_bin = Counter(msd_year_list)
-   
     year_span_bin_z = Counter({(1981, 2020): 0})
-   
     for year_z, count in year_bin_z.items():
         # For every year instance, check if it falls in the following bins...
         for year_span_z in year_span_bin_z:
@@ -911,6 +930,7 @@ def Year():
    
     plt.show()
  
+#lets us use the --graph <graph name> to run graph fxns
 if __name__ == "__main__":
     aparser = ArgumentParser()
     aparser.add_argument('--graph', type=str, choices=['Age', 'Status', 'Year'])
